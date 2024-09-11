@@ -1,59 +1,37 @@
+from io import BytesIO
+from pathlib import Path
+
 import streamlit as st
 from pytube import YouTube
-from io import BytesIO
-import os
 
-def download_audio_from_youtube(url):
-    yt = YouTube(url)
-    audio_stream = yt.streams.filter(only_audio=True).first()
-    
-    # Create a temporary file to store the downloaded audio
-    temp_file_path = "temp_audio.mp4"
-    
-    try:
-        # Download the audio to a temporary file
-        audio_stream.download(output_path=".", filename=temp_file_path)
-        
-        # Read the temporary file into a BytesIO object
-        audio_file = BytesIO()
-        with open(temp_file_path, "rb") as f:
-            audio_file.write(f.read())
-        
-        # Reset the buffer's position to the beginning
-        audio_file.seek(0)
-        
-        return audio_file
-    finally:
-        # Cleanup: Remove the temporary file
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+st.set_page_config(page_title="Tejverter", page_icon="🎵", layout="centered", initial_sidebar_state="collapsed")
 
-st.title("Tejas's YouTube to MP3 Converter")
+@st.cache_data(show_spinner=False)
+def download_audio_to_buffer(url):
+    buffer = BytesIO()
+    youtube_video = YouTube(url)
+    audio = youtube_video.streams.get_audio_only()
+    default_filename = audio.default_filename
+    audio.stream_to_buffer(buffer)
+    return default_filename, buffer
 
-url = st.text_input("Paste the YouTube video URL here:")
-
-# Variable to track conversion state
-if 'convert' in st.session_state:
-    if st.session_state.convert:
-        st.write("Processing...")
-        try:
-            audio_data = download_audio_from_youtube(url)
-            st.download_button(
-                label="Download Audio",
-                data=audio_data.getvalue(),  # Convert to bytes
-                file_name="audio.mp4",
-                mime="audio/mp4"  # MIME type for MP4 audio
-            )
-            st.session_state.convert = False  # Reset the button state
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            st.session_state.convert = False  # Reset the button state
-else:
-    st.session_state.convert = False
-
-# Convert button
-if st.button("Convert"):
+def main():
+    st.title("Tejas's YT to Audio Converter")
+    url = st.text_input("Insert Youtube URL:")
     if url:
-        st.session_state.convert = True
-    else:
-        st.error("Please enter a YouTube URL.")
+        with st.spinner("Downloading Audio Stream from Youtube..."):
+            default_filename, buffer = download_audio_to_buffer(url)
+        st.subheader("Title")
+        st.write(default_filename)
+        title_vid = Path(default_filename).with_suffix(".mp3").name
+        st.subheader("Listen to Audio")
+        st.audio(buffer, format='audio/mpeg')
+        st.subheader("Download Audio File")
+        st.download_button(
+            label="Download mp3",
+            data=buffer,
+            file_name=title_vid,
+            mime="audio/mpeg")
+
+if __name__ == "__main__":
+    main()
